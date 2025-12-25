@@ -1,6 +1,9 @@
 name: Update Google Sheet -> GitHub Pages
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "0 9 * * *" # daily; cron is interpreted in UTC
   workflow_dispatch: {}

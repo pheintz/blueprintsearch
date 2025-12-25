@@ -33,9 +33,26 @@ def main(csv_path: str, out_path: str) -> None:
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
   <title>Sheet Table</title>
   <style>
-    body {{ font-family: system-ui, Arial, sans-serif; margin: 20px; }}
+    body {{
+        background-color: var(--background-color);
+        color: var(--text-color);
+        font-family: "IBM Plex Sans", sans-serif;
+        font-optical-sizing: auto;
+        font-weight: 400;
+        font-style: normal;
+        font-variation-settings: "wdth" 100;
+        font-size: large;
+        margin: 0;
+        padding: 20px;
+        height: 50vh;
+        display: flex;
+        flex-direction: column;
+    }}
     .meta {{ margin: 0 0 12px; color: #555; font-size: 14px; }}
     input {{ width: min(900px, 100%); padding: 10px; font-size: 16px; margin: 8px 0 14px; }}
     table {{ border-collapse: collapse; width: 100%; }}

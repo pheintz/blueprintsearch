@@ -1,80 +1,55 @@
-#!/usr/bin/env python3
-import csv
-import html
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
+name: Update Google Sheet -> GitHub Pages
 
-def main(csv_path: str, out_path: str) -> None:
-    csv_file = Path(csv_path)
-    out_file = Path(out_path)
-    out_file.parent.mkdir(parents=True, exist_ok=True)
+on:
+  schedule:
+    - cron: "0 9 * * *" # daily; cron is interpreted in UTC
+  workflow_dispatch: {}
 
-    # Read CSV
-    with csv_file.open("r", encoding="utf-8-sig", newline="") as f:
-        rows = list(csv.reader(f))
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
-    if not rows:
-        raise SystemExit("CSV is empty")
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
-    headers = rows[0]
-    data_rows = rows[1:]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    updated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-    def td(cell: str) -> str:
-        return f"<td>{html.escape(cell)}</td>"
+      - name: Download Google Sheet as CSV
+        env:
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          SHEET_NAME: ${{ secrets.SHEET_NAME }}
+        run: |
+          python - <<'PY'
+          import os, urllib.parse, urllib.request
+          sheet_id = os.environ["SHEET_ID"]
+          sheet_name = os.environ.get("SHEET_NAME","Sheet1")
+          url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={urllib.parse.quote(sheet_name)}"
+          print("Fetching:", url)
+          data = urllib.request.urlopen(url).read()
+          os.makedirs("build", exist_ok=True)
+          open("build/data.csv","wb").write(data)
+          PY
 
-    thead = "<tr>" + "".join(f"<th>{html.escape(h)}</th>" for h in headers) + "</tr>"
-    tbody = "\n".join("<tr>" + "".join(td(c) for c in r) + "</tr>" for r in data_rows)
+      - name: Generate searchable HTML
+        run: |
+          python scripts/generate_site.py build/data.csv build/index.html
 
-    page = f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Sheet Table</title>
-  <style>
-    body {{ font-family: system-ui, Arial, sans-serif; margin: 20px; }}
-    .meta {{ margin: 0 0 12px; color: #555; font-size: 14px; }}
-    input {{ width: min(900px, 100%); padding: 10px; font-size: 16px; margin: 8px 0 14px; }}
-    table {{ border-collapse: collapse; width: 100%; }}
-    th, td {{ border: 1px solid #ddd; padding: 8px; vertical-align: top; }}
-    th {{ position: sticky; top: 0; background: #f6f6f6; text-align: left; }}
-    tr:nth-child(even) td {{ background: #fafafa; }}
-  </style>
-</head>
-<body>
-  <h1>Google Sheet (Searchable)</h1>
-  <p class="meta">Last updated (UTC): {updated}</p>
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build
 
-  <input id="q" type="search" placeholder="Type to search…" autocomplete="off" />
-
-  <table id="tbl">
-    <thead>{thead}</thead>
-    <tbody>{tbody}</tbody>
-  </table>
-
-<script>
-  const q = document.getElementById('q');
-  const tbody = document.querySelector('#tbl tbody');
-  const rows = Array.from(tbody.querySelectorAll('tr'));
-
-  q.addEventListener('input', () => {{
-    const needle = q.value.trim().toLowerCase();
-    for (const tr of rows) {{
-      const hay = tr.innerText.toLowerCase();
-      tr.style.display = hay.includes(needle) ? '' : 'none';
-    }}
-  }});
-</script>
-</body>
-</html>
-"""
-    out_file.write_text(page, encoding="utf-8")
-    print(f"Wrote {out_file} ({len(data_rows)} rows)")
-
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        raise SystemExit("Usage: generate_site.py input.csv output.html")
-    main(sys.argv[1], sys.argv[2])
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

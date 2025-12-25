@@ -20,13 +20,26 @@ def main(csv_path: str, out_path: str) -> None:
     headers = rows[0]
     data_rows = rows[1:]
 
+    # Determine which columns to keep: skip columns whose header (row 1) is empty or whitespace
+    keep_indices = [i for i, h in enumerate(headers) if h and h.strip() != ""]
+    if not keep_indices:
+        raise SystemExit("No non-empty header columns found in CSV")
+
+    filtered_headers = [headers[i] for i in keep_indices]
+
+    # Normalize rows to the kept columns, filling missing cells with empty string
+    def row_for_indices(row):
+        return [row[i] if i < len(row) else "" for i in keep_indices]
+
+    filtered_data_rows = [row_for_indices(r) for r in data_rows]
+
     updated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
 
     def td(cell: str) -> str:
         return f"<td>{html.escape(cell)}</td>"
 
-    thead = "<tr>" + "".join(f"<th>{html.escape(h)}</th>" for h in headers) + "</tr>"
-    tbody = "\n".join("<tr>" + "".join(td(c) for c in r) + "</tr>" for r in data_rows)
+    thead = "<tr>" + "".join(f"<th>{html.escape(h)}</th>" for h in filtered_headers) + "</tr>"
+    tbody = "\n".join("<tr>" + "".join(td(c) for c in r) + "</tr>" for r in filtered_data_rows)
 
     page = f"""<!doctype html>
 <html lang="en">
@@ -89,7 +102,7 @@ def main(csv_path: str, out_path: str) -> None:
 </html>
 """
     out_file.write_text(page, encoding="utf-8")
-    print(f"Wrote {out_file} ({len(data_rows)} rows)")
+    print(f"Wrote {out_file} ({len(filtered_data_rows)} rows, {len(filtered_headers)} columns)")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
